@@ -38,6 +38,7 @@ import { useMessageEmoji } from "@/features/messages/lib/useMessageEmoji";
 import { parseWaveMessageContent } from "@/features/messages/lib/waveMessage";
 import { resolveSnapshotSharedBy } from "@/features/messages/lib/snapshotSharedBy";
 import { resolveMentionProps } from "@/shared/lib/resolveMentionNames";
+import { getAgentNameColorStyle } from "@/shared/lib/agentNameColors";
 import { Markdown } from "@/shared/ui/markdown";
 import type { VideoReviewContext } from "@/shared/ui/VideoPlayer";
 import { MessageActionBar } from "./MessageActionBar";
@@ -468,10 +469,15 @@ export const MessageRow = React.memo(
       <div className="flex shrink-0 items-start">{avatarNode}</div>
     );
 
+    const authorNameColorStyle = getAgentNameColorStyle(message.nameColor);
     const authorNode = message.pubkey ? (
-      <MessageAuthorText hoverUnderline>{message.author}</MessageAuthorText>
+      <MessageAuthorText hoverUnderline style={authorNameColorStyle}>
+        {message.author}
+      </MessageAuthorText>
     ) : (
-      <MessageAuthorText as="h3">{message.author}</MessageAuthorText>
+      <MessageAuthorText as="h3" style={authorNameColorStyle}>
+        {message.author}
+      </MessageAuthorText>
     );
     const agentOwnerNode = message.isAgent ? (
       <MessageAgentOwner
@@ -841,6 +847,7 @@ export const MessageRow = React.memo(
     prev.message.ownerPubkey === next.message.ownerPubkey &&
     prev.message.ownerLabel === next.message.ownerLabel &&
     prev.message.avatarUrl === next.message.avatarUrl &&
+    prev.message.nameColor === next.message.nameColor &&
     prev.message.accent === next.message.accent &&
     prev.message.time === next.message.time &&
     prev.message.depth === next.message.depth &&
