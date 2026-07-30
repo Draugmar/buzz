@@ -113,6 +113,7 @@ type MockPersonaSeed = {
   id?: string;
   displayName: string;
   avatarUrl?: string | null;
+  nameColor?: string | null;
   systemPrompt: string;
   updatedAt?: string;
   isActive?: boolean;
@@ -813,6 +814,7 @@ type RawPersona = {
   id: string;
   display_name: string;
   avatar_url: string | null;
+  name_color?: string | null;
   system_prompt: string;
   runtime?: string | null;
   model?: string | null;
@@ -2200,6 +2202,7 @@ function resetMockPersonas(config?: E2eConfig) {
       id: persona.id ?? crypto.randomUUID(),
       display_name: persona.displayName,
       avatar_url: persona.avatarUrl ?? null,
+      name_color: persona.nameColor ?? null,
       system_prompt: persona.systemPrompt,
       runtime: persona.runtime ?? null,
       model: persona.model ?? null,
