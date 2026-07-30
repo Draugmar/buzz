@@ -1156,6 +1156,62 @@ git commit -m "feat(frontend): color @-mention autocomplete rows and rendered ch
 
 ---
 
+## Task 7b: Frontend — color the rendered mention chip in an already-sent message
+
+**Why this task exists:** Task 7's implementer investigated and found the plan's premise was wrong — an already-sent message's `@mention` does NOT render through the TipTap `MentionHighlightExtension` (that only ever runs inside the live composer's editable ProseMirror instance). A sent message's body renders through a completely separate path: `Markdown` (`desktop/src/shared/ui/markdown.tsx`) → `Components.mention` → `MarkdownMention` (`markdown.tsx:1667-1719`), which resolves `@name` tokens against `mentionPubkeysByName`/`agentMentionPubkeysByName` (`Record<string, string>`, name → pubkey) supplied via `MarkdownRuntime` (`shared/ui/markdown/types.ts:28-49`, `shared/ui/markdown/runtimeContext.ts`). `MessageRow.tsx:187-224` computes these per-row from `resolveMentionProps(message.tags, profiles)` + `isKnownAgentPubkey`. This is exactly the screenshot the user originally showed (a colored pill inside an already-sent message) — it is core to the feature, not optional polish.
+
+**Files:**
+- Modify: `desktop/src/shared/ui/markdown/types.ts` (add `agentMentionNameColors?: Record<string, string>` to `MarkdownRuntime` and `MarkdownProps`)
+- Modify: `desktop/src/shared/ui/markdown.tsx` (thread the new prop into the runtime context value; `MarkdownMention` applies the color)
+- Modify: `desktop/src/features/messages/ui/MessageRow.tsx` (accept a new `nameColorLookup?: Map<string, string>` prop — pubkey-keyed, reusing the exact type Task 6 already established in `ChannelScreen.tsx`/`useIndependentThreadPanel.ts` — derive `agentMentionNameColors` from the already-computed `agentMentionPubkeysByName`, pass into `<Markdown>`)
+- Modify: `desktop/src/features/messages/ui/TimelineMessageList.tsx` (2 `<MessageRow>` call sites + `MessageRowItemProps` — accept and forward the new prop)
+- Modify: `desktop/src/features/messages/ui/MessageThreadPanel.tsx` (2 `<MessageRow>` call sites — same)
+- Modify: `desktop/src/features/channels/ui/ChannelScreen.tsx` (already computes `nameColorLookup` as of Task 6 — pass it into whichever child owns the `<TimelineMessageList>`/`<MessageThreadPanel>` JSX; locate that exact spot by reading the component, don't assume)
+
+**Interfaces:**
+- Consumes: `getAgentNameColorStyle` (Task 4), `nameColorLookup: Map<string, string>` (pubkey → color id, the same construction Task 6 added to `ChannelScreen.tsx`).
+- Produces: `MarkdownMention` renders with the mentioned agent's color when known.
+
+**Explicitly out of scope for this task** (a further, separate extension if ever wanted): the Inbox (`features/home/ui/InboxMessageRow.tsx`, `FeedSection.tsx`) and Forum (`ForumThreadPanel.tsx`, `ForumPostCard.tsx`) surfaces also render through `MarkdownMention` with their own `mentionPubkeysByName` plumbing — do not extend to those surfaces as part of this task.
+
+- [ ] **Step 1: Add the new prop to the markdown runtime types**
+
+Read `desktop/src/shared/ui/markdown/types.ts` and add `agentMentionNameColors?: Record<string, string>;` (name-keyed, lowercase — matching the composer-side convention from Task 7) to both `MarkdownRuntime` and `MarkdownProps`, next to the existing `agentMentionPubkeysByName`-equivalent field.
+
+- [ ] **Step 2: Thread it through the runtime context and apply it in `MarkdownMention`**
+
+In `desktop/src/shared/ui/markdown.tsx`: thread `agentMentionNameColors` from `MarkdownProps` into whatever builds the runtime context value consumed via `runtimeContext.ts`. In `MarkdownMention` (`markdown.tsx:1667-1719`), look up the color for the mentioned name (`agentMentionNameColors?.[mentionName.toLowerCase()]`) and apply `style={getAgentNameColorStyle(color ?? null)}` to the rendered mention `<span>`. Import `getAgentNameColorStyle` from `@/shared/lib/agentNameColors`.
+
+- [ ] **Step 3: Wire `MessageRow.tsx`**
+
+Read `MessageRow.tsx:187-224` (`resolveMentionProps`/`agentMentionPubkeysByName` construction) to see the actual shape. Add a new prop `nameColorLookup?: Map<string, string>` to the component. Derive `agentMentionNameColors: Record<string, string>` by mapping each entry of the already-computed `agentMentionPubkeysByName` (name → pubkey) through `nameColorLookup` (pubkey → color id), producing (name → color id). Pass `agentMentionNameColors` into the `<Markdown ...>` element's props.
+
+- [ ] **Step 4: Thread `nameColorLookup` through `TimelineMessageList.tsx` and `MessageThreadPanel.tsx`**
+
+Add `nameColorLookup?: Map<string, string>` to `MessageRowItemProps` (or equivalent) in `TimelineMessageList.tsx`, forward it to both `<MessageRow>` call sites. Do the same in `MessageThreadPanel.tsx` for its 2 call sites.
+
+- [ ] **Step 5: Supply the lookup from `ChannelScreen.tsx`**
+
+`ChannelScreen.tsx` already computes `nameColorLookup` (added in Task 6). Find where it renders `<TimelineMessageList>`/`<MessageThreadPanel>` (directly, or via a child component one hop down — read the component to find the real JSX site, the brief does not assume a specific line) and pass `nameColorLookup` through.
+
+- [ ] **Step 6: Verify**
+
+Run (from `desktop/`): `pnpm typecheck && pnpm test`
+Expected: both clean, same or higher pass count than before this task.
+
+- [ ] **Step 7: Manual check**
+
+Set a color on an agent, mention it in a channel, send the message, confirm the rendered mention chip shows the color (not just the live composer decoration from Task 7). Check both light and dark theme.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add desktop/src/shared/ui/markdown/types.ts desktop/src/shared/ui/markdown.tsx desktop/src/features/messages/ui/MessageRow.tsx desktop/src/features/messages/ui/TimelineMessageList.tsx desktop/src/features/messages/ui/MessageThreadPanel.tsx desktop/src/features/channels/ui/ChannelScreen.tsx
+git commit -m "feat(frontend): color the rendered mention chip in sent messages by agent name-color"
+```
+
+---
+
 ## Task 8: Frontend — agent management surfaces
 
 **Files:**
