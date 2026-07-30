@@ -37,3 +37,19 @@ export function getAgentNameColorStyle(
   }
   return { color: `var(--agent-color-${nameColor})` };
 }
+
+/**
+ * The CSS `var(...)` reference for a palette color id, or `undefined` if the
+ * id is missing/unknown. Validates against the same 16-id palette as
+ * `getAgentNameColorStyle` so callers building raw style strings (e.g. the
+ * mention-highlight ProseMirror decorations) can't interpolate an
+ * unvalidated id straight into CSS.
+ */
+export function colorIdToCssVarValue(
+  colorId?: string | null,
+): string | undefined {
+  if (!colorId || !isAgentNameColorId(colorId)) {
+    return undefined;
+  }
+  return `var(--agent-color-${colorId})`;
+}

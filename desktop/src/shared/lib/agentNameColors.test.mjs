@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   AGENT_NAME_COLOR_IDS,
+  colorIdToCssVarValue,
   getAgentNameColorStyle,
 } from "./agentNameColors.ts";
 
@@ -27,5 +28,20 @@ describe("getAgentNameColorStyle", () => {
 
   it("has exactly 16 palette ids", () => {
     assert.equal(AGENT_NAME_COLOR_IDS.length, 16);
+  });
+});
+
+describe("colorIdToCssVarValue", () => {
+  it("returns the CSS var() reference for a valid palette id", () => {
+    assert.equal(colorIdToCssVarValue("blue"), "var(--agent-color-blue)");
+  });
+
+  it("returns undefined for an unknown id", () => {
+    assert.equal(colorIdToCssVarValue("burnt-sienna"), undefined);
+  });
+
+  it("returns undefined for null/undefined", () => {
+    assert.equal(colorIdToCssVarValue(null), undefined);
+    assert.equal(colorIdToCssVarValue(undefined), undefined);
   });
 });

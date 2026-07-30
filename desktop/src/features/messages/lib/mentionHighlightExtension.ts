@@ -2,6 +2,8 @@ import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey, type Transaction } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 
+import { colorIdToCssVarValue } from "@/shared/lib/agentNameColors";
+
 export const mentionHighlightKey = new PluginKey("mentionHighlight");
 
 /**
@@ -311,7 +313,10 @@ function addMatchesForPatterns(
       const to = from + match[0].length;
       const matchedName = match[1] ?? match[0].replace(/^[@#]/, "");
       const colorId = options?.nameColors?.[matchedName.trim().toLowerCase()];
-      const style = colorId ? `color: var(--agent-color-${colorId})` : undefined;
+      const colorVar = colorIdToCssVarValue(colorId);
+      const style = colorVar
+        ? `color: ${colorVar}; background: color-mix(in srgb, ${colorVar} 15%, transparent)`
+        : undefined;
       if (options?.hideMentionPrefix && match[0].startsWith("@")) {
         decorations.push(
           Decoration.inline(from, from + 1, {
