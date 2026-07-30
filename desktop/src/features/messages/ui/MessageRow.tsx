@@ -78,6 +78,7 @@ export const MessageRow = React.memo(
     isUnread,
     layoutVariant = "default",
     message,
+    nameColorLookup,
     onCollapseDepthGuide,
     onCollapseDepthGuideHoverChange,
     onCollapseDescendants,
@@ -115,6 +116,8 @@ export const MessageRow = React.memo(
     isUnread?: boolean;
     layoutVariant?: "default" | "thread-reply";
     message: TimelineMessage;
+    /** Pubkey (lowercase) → agent name-color id, for coloring mention chips in the body. */
+    nameColorLookup?: Map<string, string>;
     onCollapseDepthGuide?: (message: TimelineMessage) => void;
     onCollapseDepthGuideHoverChange?: (
       message: TimelineMessage,
@@ -222,6 +225,22 @@ export const MessageRow = React.memo(
 
       return Object.keys(values).length > 0 ? values : undefined;
     }, [isKnownAgentPubkey, mentionPubkeysByName]);
+
+    const agentMentionNameColors = React.useMemo(() => {
+      if (!agentMentionPubkeysByName || !nameColorLookup) {
+        return undefined;
+      }
+
+      const values: Record<string, string> = {};
+      for (const [name, pubkey] of Object.entries(agentMentionPubkeysByName)) {
+        const color = nameColorLookup.get(normalizePubkey(pubkey));
+        if (color) {
+          values[name] = color;
+        }
+      }
+
+      return Object.keys(values).length > 0 ? values : undefined;
+    }, [agentMentionPubkeysByName, nameColorLookup]);
 
     const imetaByUrl = React.useMemo(
       () => (message.tags ? parseImetaTags(message.tags) : undefined),
@@ -374,6 +393,7 @@ export const MessageRow = React.memo(
               customEmoji={customEmoji}
               imetaByUrl={imetaByUrl}
               agentMentionPubkeysByName={agentMentionPubkeysByName}
+              agentMentionNameColors={agentMentionNameColors}
               mentionNames={mentionNames}
               mentionPubkeysByName={mentionPubkeysByName}
               searchQuery={searchQuery}
@@ -883,6 +903,7 @@ export const MessageRow = React.memo(
     prev.isFollowingThread === next.isFollowingThread &&
     prev.isUnread === next.isUnread &&
     prev.layoutVariant === next.layoutVariant &&
+    prev.nameColorLookup === next.nameColorLookup &&
     prev.onCollapseDepthGuide === next.onCollapseDepthGuide &&
     prev.onCollapseDepthGuideHoverChange ===
       next.onCollapseDepthGuideHoverChange &&

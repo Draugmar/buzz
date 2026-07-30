@@ -949,6 +949,7 @@ export function ChannelScreen({
                   profilePanelTab={profilePanelTab}
                   profilePanelView={profilePanelView}
                   personaLookup={personaLookup}
+                  nameColorLookup={nameColorLookup}
                   profiles={messageProfiles}
                   ownerProfiles={messageOwnerProfiles}
                   firstUnreadMessageId={firstUnreadMessageId}
