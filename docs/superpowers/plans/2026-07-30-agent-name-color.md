@@ -741,13 +741,19 @@ git commit -m "feat(frontend): add name-color picker to the agent edit dialog"
 
 ## Task 6: Frontend — color the message author name
 
+**CORRECTION (found by the Task 6 implementer, confirmed by follow-up research):** the plan originally assumed `MessageRow.tsx` already has the message author's resolved `ManagedAgent`/`AgentPersona` object in scope (since it renders the author's avatar). That's wrong — a message's `avatarUrl`/`displayName` come from `TimelineMessage` (`desktop/src/features/messages/types.ts`), built by `formatTimelineMessages()` (`desktop/src/features/messages/lib/formatTimelineMessages.ts`) purely from a generic `profiles: UserProfileLookup` map keyed by pubkey — `nameColor` never reaches this pipeline. This task is now scoped wider to thread it through, following the exact template the codebase already uses for `personaLookup`/`respondToLookup` (both built the same way, one level up, from `managedAgentsQuery.data`).
+
 **Files:**
+- Modify: `desktop/src/features/channels/ui/ChannelScreen.tsx` (extend the existing `personaLookup`/`respondToLookup`-building `useMemo` around line 373-387)
+- Modify: `desktop/src/features/messages/lib/formatTimelineMessages.ts` (new optional parameter, one new field on the returned object)
+- Modify: `desktop/src/features/messages/types.ts` (`TimelineMessage` gains `nameColor?: string | null`)
 - Modify: `desktop/src/features/messages/ui/MessageHeader.tsx`
-- Modify: `desktop/src/features/messages/ui/MessageRow.tsx` (the two call sites at lines ~472/474 that render `<MessageAuthorText>`)
+- Modify: `desktop/src/features/messages/ui/MessageRow.tsx` (the call site(s) that render `<MessageAuthorText>`, around line 471-475, plus the row's memo-comparison list around line 840/857)
+- Modify: `desktop/src/features/messages/lib/useHomeInboxContextMessages.ts` and `desktop/src/features/messages/lib/independentThreadPanel.ts` (the other two callers of `formatTimelineMessages` — each already has an equivalent persona-lookup map in scope; thread `nameColorLookup` through the same way, so message author color also works in the home inbox and thread panel, not only the main channel view)
 
 **Interfaces:**
-- Consumes: `getAgentNameColorStyle` from `@/shared/lib/agentNameColors` (Task 4).
-- Produces: `MessageAuthorText` accepts an optional `style` prop.
+- Consumes: `getAgentNameColorStyle` from `@/shared/lib/agentNameColors` (Task 4), `ManagedAgent.nameColor` (Task 4).
+- Produces: `MessageAuthorText` accepts an optional `style` prop. `formatTimelineMessages` accepts a new optional `nameColorLookup?: Map<string, string>` parameter. `TimelineMessage.nameColor?: string | null`.
 
 - [ ] **Step 1: Add a `style` prop to `MessageAuthorText`**
 
@@ -813,22 +819,115 @@ export function MessageAuthorText({
 }
 ```
 
-- [ ] **Step 2: Pass the resolved color at the two call sites**
+- [ ] **Step 2: Add `nameColor` to `TimelineMessage`**
 
-Open `desktop/src/features/messages/ui/MessageRow.tsx` around lines 472/474. Each `<MessageAuthorText>` usage there is rendering the message's author — find the in-scope variable that holds the author's resolved agent/persona object (it already carries `avatarUrl`/`displayName` for the avatar next to it; use that same object). Add:
+In `desktop/src/features/messages/types.ts`, add `nameColor?: string | null;` to the `TimelineMessage` type, next to the existing `avatarUrl?`/`personaDisplayName?` fields.
+
+- [ ] **Step 3: Build the `pubkey -> nameColor` lookup in `ChannelScreen.tsx`**
+
+In `desktop/src/features/channels/ui/ChannelScreen.tsx`, find the existing `useMemo` around line 373-387 that loops `managedAgentsQuery.data` to build `personaLookup`/`respondToLookup` (both `Map`s keyed by `agent.pubkey.toLowerCase()`). Extend it to also build:
+```ts
+const nameColorLookup = new Map<string, string>();
+for (const agent of managedAgentsQuery.data ?? []) {
+  if (agent.nameColor) {
+    nameColorLookup.set(agent.pubkey.toLowerCase(), agent.nameColor);
+  }
+}
+```
+(adapt to fit the existing memo's actual loop structure — don't duplicate the iteration if it can be folded into the same loop as `personaLookup`). Pass `nameColorLookup` as a new positional argument into the `formatTimelineMessages(...)` call at line ~397-398, in the same relative position you add it to the function's parameter list in Step 4.
+
+- [ ] **Step 4: Thread `nameColorLookup` through `formatTimelineMessages`**
+
+In `desktop/src/features/messages/lib/formatTimelineMessages.ts`, add a new optional parameter `nameColorLookup?: Map<string, string>` to `formatTimelineMessages`'s signature (after `personaLookup`). Inside the per-event `.map`/loop that builds each `TimelineMessage`, add:
+```ts
+nameColor: nameColorLookup?.get(authorPubkey.toLowerCase()) ?? null,
+```
+(mirror exactly how `personaDisplayName` is derived a few lines away — same `authorPubkey` variable, same lowercase-keyed lookup pattern).
+
+- [ ] **Step 5: Thread the same parameter through the other two callers**
+
+In `desktop/src/features/messages/lib/useHomeInboxContextMessages.ts` and `desktop/src/features/messages/lib/independentThreadPanel.ts`: each already builds an equivalent persona/agent lookup map to pass into its own `formatTimelineMessages` call (or into `useIndependentThreadPanel`, per the research). Add the same `nameColorLookup` construction (same pattern as Step 3) and pass it through. If either file doesn't have a `managedAgentsQuery`/agent list readily in scope, report that specifically rather than fabricating a new data-fetch — a missing agent list at one of these two secondary call sites is an acceptable gap to flag and skip (leaving that surface uncolored for now), since the primary channel view (`ChannelScreen.tsx`) is the requirement that must not be skipped.
+
+- [ ] **Step 6: Add the `style` prop to `MessageAuthorText`**
+
+In `desktop/src/features/messages/ui/MessageHeader.tsx`, change:
+```tsx
+type MessageAuthorTextProps = {
+  as?: "div" | "h3" | "span";
+  children: React.ReactNode;
+  className?: string;
+  hoverUnderline?: boolean;
+};
+
+export function MessageAuthorText({
+  as: Component = "span",
+  children,
+  className,
+  hoverUnderline = false,
+}: MessageAuthorTextProps) {
+  return (
+    <Component
+      className={cn(
+        "truncate text-sm font-semibold leading-4 tracking-tight",
+        hoverUnderline && "hover:underline",
+        className,
+      )}
+      data-testid="message-author"
+    >
+      {children}
+    </Component>
+  );
+}
+```
+to:
+```tsx
+type MessageAuthorTextProps = {
+  as?: "div" | "h3" | "span";
+  children: React.ReactNode;
+  className?: string;
+  hoverUnderline?: boolean;
+  style?: React.CSSProperties;
+};
+
+export function MessageAuthorText({
+  as: Component = "span",
+  children,
+  className,
+  hoverUnderline = false,
+  style,
+}: MessageAuthorTextProps) {
+  return (
+    <Component
+      className={cn(
+        "truncate text-sm font-semibold leading-4 tracking-tight",
+        hoverUnderline && "hover:underline",
+        className,
+      )}
+      data-testid="message-author"
+      style={style}
+    >
+      {children}
+    </Component>
+  );
+}
+```
+
+- [ ] **Step 7: Pass the resolved color at the `MessageRow.tsx` call site(s)**
+
+Open `desktop/src/features/messages/ui/MessageRow.tsx` around lines 471-475 where `<MessageAuthorText>` renders `message.author`. Add:
 ```tsx
 import { getAgentNameColorStyle } from "@/shared/lib/agentNameColors";
 ```
-and pass `style={getAgentNameColorStyle(authorAgent?.nameColor)}` to both `<MessageAuthorText>` elements, substituting `authorAgent` with whatever the actual in-scope variable is named (grep the ~30 lines above line 472 for the object that already supplies the avatar's `avatarUrl` — it's the same one).
+and pass `style={getAgentNameColorStyle(message.nameColor)}`. Also add `message.nameColor` to the row's memo-comparison dependency list around line 840/857 (wherever the component memoizes on message fields) so a color change is reflected without requiring an unrelated re-render trigger.
 
-- [ ] **Step 3: Manual check**
+- [ ] **Step 8: Manual check**
 
-Set a color on a test agent (via Task 5's picker), send a message as that agent, confirm the name renders in that color in both light and dark theme.
+Set a color on a test agent (via Task 5's picker), send a message as that agent, confirm the name renders in that color in both light and dark theme, in the main channel view. Check the home inbox and a thread panel too if Step 5 wired those.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add desktop/src/features/messages/ui/MessageHeader.tsx desktop/src/features/messages/ui/MessageRow.tsx
+git add desktop/src/features/channels/ui/ChannelScreen.tsx desktop/src/features/messages/lib/formatTimelineMessages.ts desktop/src/features/messages/types.ts desktop/src/features/messages/ui/MessageHeader.tsx desktop/src/features/messages/ui/MessageRow.tsx desktop/src/features/messages/lib/useHomeInboxContextMessages.ts desktop/src/features/messages/lib/independentThreadPanel.ts
 git commit -m "feat(frontend): color the message author name by agent name-color"
 ```
 
