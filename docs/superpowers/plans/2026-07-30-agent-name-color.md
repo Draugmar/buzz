@@ -247,6 +247,7 @@ git commit -m "feat(backend): add validated name_color field to agent persona mo
 - Modify: `desktop/src-tauri/src/managed_agents/persona_events.rs` (`persona_from_event`)
 - Modify: `desktop/src-tauri/src/commands/team_snapshot.rs` (`definition_from_snapshot`, and the `ManagedAgentRecord` mint-time literal)
 - Modify: `desktop/src-tauri/src/commands/agents.rs` (`create_managed_agent`)
+- Modify: `desktop/src-tauri/src/commands/personas/snapshot/import.rs` (correction found via live `cargo check` — this file is production code, not a test fixture as originally assumed; it has an `AgentDefinition` literal at line ~447 and a `ManagedAgentRecord` literal at line ~482)
 - Modify: `desktop/src-tauri/src/managed_agents/runtime.rs` (the `ManagedAgentSummary` construction)
 
 **Interfaces:**
@@ -293,15 +294,21 @@ In `desktop/src-tauri/src/managed_agents/runtime.rs`, inside the `Ok(ManagedAgen
         name_color: record.name_color.clone(),
 ```
 
-- [ ] **Step 7: Verify these 5 files are the only remaining non-test compile errors**
+- [ ] **Step 6b: `commands/personas/snapshot/import.rs` — two more production sites (found via live `cargo check`, not in the original plan research)**
 
-Run: `cargo check -p buzz-desktop 2>&1 | grep "missing field \`name_color\`"`
-Expected: no output (the non-test crate now compiles clean).
+This file was miscategorized during planning as a test-only fixture; a real `cargo check -p buzz-desktop --lib` run showed it is actual production code (persona/team snapshot import) and must be fixed here, not in Task 3. Open `desktop/src-tauri/src/commands/personas/snapshot/import.rs`:
+- At the `AgentDefinition { ... }` literal around line 447, add `name_color: None,` next to `avatar_url:` (imported snapshots start with no color, matching Step 3's treatment).
+- At the `ManagedAgentRecord { ... }` literal around line 482, add `name_color: None,` next to `avatar_url:` or `display_name:` (matching Step 4's treatment).
+
+- [ ] **Step 7: Verify these 6 files are the only remaining non-test compile errors**
+
+Run: `cargo check -p buzz-desktop --lib 2>&1 | grep "missing field \`name_color\`"`
+Expected: no output (the non-test crate now compiles clean). Note: use `--lib` (not the bare `cargo check -p buzz-desktop`, which fails with "package ID specification did not match any packages" in this workspace layout — run it from `desktop/src-tauri/` or use `-p buzz-desktop --lib` from the repo root once the workspace resolves it).
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add desktop/src-tauri/src/managed_agents/personas.rs desktop/src-tauri/src/managed_agents/persona_events.rs desktop/src-tauri/src/commands/team_snapshot.rs desktop/src-tauri/src/commands/agents.rs desktop/src-tauri/src/managed_agents/runtime.rs
+git add desktop/src-tauri/src/managed_agents/personas.rs desktop/src-tauri/src/managed_agents/persona_events.rs desktop/src-tauri/src/commands/team_snapshot.rs desktop/src-tauri/src/commands/agents.rs desktop/src-tauri/src/commands/personas/snapshot/import.rs desktop/src-tauri/src/managed_agents/runtime.rs
 git commit -m "feat(backend): propagate name_color through built-ins, catalog events, team snapshots, and agent creation"
 ```
 
